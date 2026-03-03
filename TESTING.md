@@ -201,63 +201,64 @@ Proceed to Phase 4 (Page Verification)?
 
 ---
 
-## Phase 4: Page Verification
+## Phase 4: Page Route Verification
 
-**Goal**: Verify all pages load without errors.
+**Goal**: Verify all page routes render correctly.
 
-**Steps**: For each page, fetch the HTML and check for errors.
+**Steps**:
 
-### 4.1 Verify Landing Page
+### 4.1 Check Setup Page
 ```bash
-curl -s "https://[your-handle].zo.space/qa" | head -100
+curl -s "https://[your-zo].zo.space/qa/setup?event=testevent"
 ```
-- **Check**: Page returns HTML, no 404/500 errors
-- **Screenshot**: If possible, capture screenshot
-- **Record**: `verify_landing: [pass/fail, URL, screenshot path]`
+- **Expected**: HTML with "Set Up Your Q&A" heading
+- **Record**: `setup_page: [pass/fail]`
 
-### 4.2 Verify Submit Page
+### 4.2 Check Submit Page
 ```bash
-curl -s "https://[your-handle].zo.space/qa/submit" | head -100
+curl -s "https://[your-zo].zo.space/qa/submit?event=testevent"
 ```
-- **Record**: `verify_submit: [pass/fail, URL, screenshot path]`
+- **Expected**: HTML with submission form
+- **Record**: `submit_page: [pass/fail]`
 
-### 4.3 Verify Vote Page
+### 4.3 Check Vote Page
 ```bash
-curl -s "https://[your-handle].zo.space/qa/vote" | head -100
+curl -s "https://[your-zo].zo.space/qa/vote?event=testevent"
 ```
-- **Record**: `verify_vote: [pass/fail, URL, screenshot path]`
+- **Expected**: HTML with voting interface
+- **Record**: `vote_page: [pass/fail]`
 
-### 4.4 Verify TV Page
+### 4.4 Check TV Wall Page
 ```bash
-curl -s "https://[your-handle].zo.space/qa/tv" | head -100
+curl -s "https://[your-zo].zo.space/qa/tv?event=testevent"
 ```
-- **Record**: `verify_tv: [pass/fail, URL, screenshot path]`
+- **Expected**: HTML with TV wall display
+- **Record**: `tv_page: [pass/fail]`
 
-### 4.5 Verify Admin Page
+### 4.5 Check Admin Panel Page
 ```bash
-curl -s "https://[your-handle].zo.space/qa/admin" | head -100
+curl -s "https://[your-zo].zo.space/qa/admin?event=testevent"
 ```
-- **Record**: `verify_admin: [pass/fail, URL, screenshot path]`
+- **Expected**: HTML with admin controls (runtime controls, export, reset)
+- **Record**: `admin_page: [pass/fail]`
 
-### 4.6 Check for Space Errors
+### 4.6 Check Landing Page
 ```bash
-# Use Zo's get_space_errors() tool or check logs
+curl -s "https://[your-zo].zo.space/qa"
 ```
-- **Record**: `space_errors: [list of errors or "none"]`
+- **Expected**: HTML with landing page
+- **Record**: `landing_page: [pass/fail]`
 
 **Phase 4 Check-In**:
 Report to user:
 ```
-Phase 4 Complete: Page Verification
-✓ Landing (/qa): [status] - [URL]
-✓ Submit (/qa/submit): [status] - [URL]
-✓ Vote (/qa/vote): [status] - [URL]
-✓ TV (/qa/tv): [status] - [URL]
-✓ Admin (/qa/admin): [status] - [URL]
-
-Space errors: [none / count]
-
-[Show screenshots if captured]
+Phase 4 Complete: Page Route Verification
+- Setup page: [status]
+- Submit page: [status]
+- Vote page: [status]
+- TV wall page: [status]
+- Admin panel page: [status]
+- Landing page: [status]
 
 Proceed to Phase 5 (Basic Functionality Test)?
 ```
@@ -266,61 +267,69 @@ Proceed to Phase 5 (Basic Functionality Test)?
 
 ## Phase 5: Basic Functionality Test
 
-**Goal**: Test core features (submit, list, vote, display).
+**Goal**: Test core Q&A functionality.
 
 **Steps**:
 
 ### 5.1 Submit a Test Question
 ```bash
-curl -X POST "https://[your-handle].zo.space/api/qa/questions?event=test" \
+curl -X POST "https://[your-zo].zo.space/api/qa/questions?event=testevent" \
   -H "Content-Type: application/json" \
-  -d '{"text":"This is a test question from the testing process","submitter_name":"Zo Test Bot"}'
+  -H "x-qa-user-id: test-user-001" \
+  -d '{"text":"Test question from Zo","submitter_name":"Zo Tester"}'
 ```
-- **Expected**: `{"ok":true,"question":{...}}`
-- **Record**: `test_submit: [pass/fail, response]`
+- **Expected**: `{"ok":true,"data":{"question":{...}}}`
+- **Record**: `submit_question: [pass/fail, question_id if pass]`
 
-### 5.2 List Questions
+### 5.2 Vote on the Question
 ```bash
-curl -s "https://[your-handle].zo.space/api/qa/questions?event=test"
+curl -X POST "https://[your-zo].zo.space/api/qa/questions/[question_id]/vote?event=testevent" \
+  -H "x-qa-user-id: test-user-001"
 ```
-- **Check**: Response includes the test question
-- **Record**: `test_list: [pass/fail, question count, response snippet]`
+- **Expected**: `{"ok":true,"data":{"vote_count":1,"action":"added"}}`
+- **Record**: `vote_question: [pass/fail]`
 
-### 5.3 Vote on Test Question
+### 5.3 Verify Vote Count
 ```bash
-# Extract question ID from step 5.2, then:
-curl -X POST "https://[your-handle].zo.space/api/qa/questions/[question-id]/vote?event=test"
+curl -s "https://[your-zo].zo.space/api/qa/questions?event=testevent" \
+  -H "x-qa-user-id: test-user-001"
 ```
-- **Expected**: `{"ok":true,"votes":1}`
-- **Record**: `test_vote: [pass/fail, response]`
+- **Expected**: Question appears with `vote_count: 1`
+- **Record**: `vote_count_verified: [pass/fail]`
 
-### 5.4 Verify Vote Count
+### 5.4 Test Admin Settings
 ```bash
-curl -s "https://[your-handle].zo.space/api/qa/questions?event=test"
+curl -s "https://[your-zo].zo.space/api/qa/admin/settings?event=testevent"
 ```
-- **Check**: Test question now has 1 vote
-- **Record**: `test_vote_verify: [pass/fail, vote count]`
+- **Expected**: `{"ok":true,"data":{"settings":{...}}}`
+- **Record**: `admin_settings_get: [pass/fail]`
 
-### 5.5 Check TV Wall
+### 5.5 Test Admin Config
 ```bash
-curl -s "https://[your-handle].zo.space/qa/tv?event=test" | grep -i "test question"
+curl -s "https://[your-zo].zo.space/api/qa/admin/config?event=testevent"
 ```
-- **Check**: Test question appears in TV wall HTML
-- **Record**: `test_tv_wall: [pass/fail]`
+- **Expected**: `{"ok":true,"data":{"config":{...}}}`
+- **Record**: `admin_config_get: [pass/fail]`
+
+### 5.6 Test Export Functionality
+```bash
+curl -s "https://[your-zo].zo.space/api/qa/admin/export?event=testevent&format=json"
+```
+- **Expected**: `{"ok":true,"data":{...}}`
+- **Record**: `export_json: [pass/fail]`
 
 **Phase 5 Check-In**:
 Report to user:
 ```
-Phase 5 Complete: Basic Functionality
-✓ Submit question: [status]
-✓ List questions: [status] - [count] questions
-✓ Vote on question: [status]
-✓ Verify vote count: [status] - [count] votes
-✓ TV wall display: [status]
+Phase 5 Complete: Basic Functionality Test
+- Submit question: [status]
+- Vote on question: [status]
+- Vote count verified: [status]
+- Admin settings (GET): [status]
+- Admin config (GET): [status]
+- Export (JSON): [status]
 
-[Show any API responses]
-
-Proceed to Phase 6 (Admin Functionality Test)?
+Proceed to Phase 6 (Settings & Controls Test)?
 ```
 
 ---

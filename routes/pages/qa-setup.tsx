@@ -80,7 +80,6 @@ label { display: grid; gap: 8px; font-size: 14px; color: var(--muted-foreground)
 
 type Config = {
   title: string;
-  brand_name: string;
   submit_label: string;
   logo_url: string;
 };
@@ -110,7 +109,7 @@ async function api(eventId: string, path: string, init: RequestInit = {}) {
 
 export default function QaSetupPage() {
   const [eventId, setEventId] = useState("default");
-  const [config, setConfig] = useState<Config>({ title: "Live Q&A", brand_name: "Q&A", submit_label: "Submit Question", logo_url: "" });
+  const [config, setConfig] = useState<Config>({ title: "Live Q&A", submit_label: "Submit Question", logo_url: "" });
   const [logoOption, setLogoOption] = useState<"none" | "url">("none");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,7 +185,7 @@ export default function QaSetupPage() {
                   onChange={(e) => setConfig((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="My Event Q&A"
                 />
-                <span className="meta" style={{ marginTop: 4 }}>This appears as the heading on all pages.</span>
+                <span className="meta" style={{ marginTop: 4 }}>This appears as the heading on all pages. Used for exports too.</span>
               </label>
 
               <label>
