@@ -11,6 +11,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // - Auto-refresh every 5 seconds
 // - Event isolation via ?event= param
 
+type QaData = {
+  questions: Question[];
+  config?: {
+    title?: string;
+    submit_label?: string;
+    logo_url?: string;
+  };
+};
+
 export default function QATV() {
   // ... full implementation from original route
   return null;
