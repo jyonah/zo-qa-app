@@ -82,26 +82,11 @@ type Config = {
   title: string;
   submit_label: string;
   logo_url: string;
-  logo_task_id?: string | null;
 };
 
-function readEventFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const raw = (params.get("event") || "default").toLowerCase().trim();
-  const cleaned = raw.replace(/[^a-z0-9_-]/g, "").slice(0, 48);
-  return cleaned || "default";
-}
-
-function setEventInUrl(eventId: string) {
-  const next = new URL(window.location.href);
-  next.searchParams.set("event", eventId);
-  window.history.replaceState({}, "", next.toString());
-}
-
-async function api(eventId: string, path: string, init: RequestInit = {}) {
+async function api(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "application/json");
-  headers.set("x-qa-event-id", eventId);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   const res = await fetch(path, { ...init, headers });
   const payload = await res.json().catch(() => ({}));
@@ -109,34 +94,53 @@ async function api(eventId: string, path: string, init: RequestInit = {}) {
 }
 
 export default function QaSetupPage() {
-  const [eventId, setEventId] = useState("default");
   const [config, setConfig] = useState<Config>({ title: "Live Q&A", submit_label: "Submit Question", logo_url: "" });
   const [logoOption, setLogoOption] = useState<"none" | "url" | "upload" | "generate">("none");
   const [logoPrompt, setLogoPrompt] = useState("");
-  const [logoGenerating, setLogoGenerating] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [generatingLogo, setGeneratingLogo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    const fromUrl = readEventFromUrl();
-    setEventId(fromUrl);
-    setEventInUrl(fromUrl);
-    loadConfig(fromUrl);
+    loadConfig();
   }, []);
 
-  async function loadConfig(ev: string) {
+  async function loadConfig() {
     setLoading(true);
     setError("");
-    const { res, payload } = await api(ev, "/api/qa/admin/config");
+    const { res, payload } = await api("/api/qa/admin/config");
     setLoading(false);
     if (res.ok && payload?.ok && payload.data?.config) {
       setConfig(payload.data.config);
       if (payload.data.config.logo_url) {
         setLogoOption("url");
       }
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append("logo", file);
+    
+    try {
+      const res = await fetch("/api/qa/admin/upload-logo", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await res.json();
+      
+      if (payload.ok && payload.data?.url) {
+        setConfig(prev => ({ ...prev, logo_url: payload.data.url }));
+      } else {
+        setError(payload.error || "Upload failed");
+      }
+    } catch (err) {
+      setError("Upload failed");
     }
   }
 
@@ -150,7 +154,7 @@ export default function QaSetupPage() {
       logo_url: logoOption === "none" ? "" : config.logo_url,
     };
 
-    const { res, payload } = await api(eventId, "/api/qa/admin/config", {
+    const { res, payload } = await api("/api/qa/admin/config", {
       method: "POST",
       body: JSON.stringify(configToSave),
     });
@@ -165,10 +169,53 @@ export default function QaSetupPage() {
     setSuccess(true);
   }
 
-  const adminUrl = `/qa/admin?event=${encodeURIComponent(eventId)}`;
-  const submitUrl = `/qa/submit?event=${encodeURIComponent(eventId)}`;
-  const voteUrl = `/qa/vote?event=${encodeURIComponent(eventId)}`;
-  const tvUrl = `/qa/tv?event=${encodeURIComponent(eventId)}`;
+  async function generateLogo() {
+    if (!logoPrompt.trim()) {
+      setError("Please describe the logo you want");
+      return;
+    }
+    
+    setGeneratingLogo(true);
+    setError("");
+    
+    try {
+      // Use the Zo ask API to generate or find a logo
+      const response = await fetch("https://api.zo.computer/zo/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          input: `The user needs a logo for a Q&A application. Their request: "${logoPrompt}". 
+            
+If they're asking for an existing logo (like "grab the Zo logo"), search for it and provide the URL.
+If they want a new logo created, generate one and provide the URL.
+
+Respond with ONLY the image URL, nothing else.`,
+          model_name: "vercel:zai/glm-5"
+        })
+      });
+      
+      const result = await response.json();
+      const logoUrl = result.output?.trim();
+      
+      if (logoUrl && logoUrl.startsWith("http")) {
+        setConfig(prev => ({ ...prev, logo_url: logoUrl }));
+        setGeneratingLogo(false);
+      } else {
+        setError("Could not generate logo. Please try a different prompt or use a URL.");
+        setGeneratingLogo(false);
+      }
+    } catch (err) {
+      setError("Logo generation failed. Please try again or use a URL.");
+      setGeneratingLogo(false);
+    }
+  }
+
+  const adminUrl = `/qa/admin`;
+  const submitUrl = `/qa/submit`;
+  const voteUrl = `/qa/vote`;
+  const tvUrl = `/qa/tv`;
 
   return (
     <main className="app">
@@ -204,13 +251,13 @@ export default function QaSetupPage() {
 
               <label>
                 Logo <span className="optional">(optional)</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: 8 }}>
+                <div style={{ display: "grid", gap: "8px", marginTop: 8 }}>
                   <label style={{ display: "flex", flexDirection: "row", gap: "6px", alignItems: "center", cursor: "pointer" }}>
                     <input
                       type="radio"
                       name="logo"
                       checked={logoOption === "none"}
-                      onChange={() => setLogoOption("none")}
+                      onChange={() => { setLogoOption("none"); setConfig(prev => ({ ...prev, logo_url: "" })); }}
                       style={{ width: "auto" }}
                     />
                     <span>No logo</span>
@@ -225,18 +272,6 @@ export default function QaSetupPage() {
                     />
                     <span>Use image URL</span>
                   </label>
-                  {logoOption === "url" && (
-                    <div style={{ display: "grid", gap: "8px", marginLeft: "24px" }}>
-                      <input
-                        value={config.logo_url}
-                        onChange={(e) => setConfig((prev) => ({ ...prev, logo_url: e.target.value }))}
-                        placeholder="https://example.com/logo.png"
-                      />
-                      {config.logo_url && (
-                        <img src={config.logo_url} alt="Logo preview" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} onLoad={(e) => (e.currentTarget.style.display = "block")} />
-                      )}
-                    </div>
-                  )}
                   <label style={{ display: "flex", flexDirection: "row", gap: "6px", alignItems: "center", cursor: "pointer" }}>
                     <input
                       type="radio"
@@ -247,42 +282,6 @@ export default function QaSetupPage() {
                     />
                     <span>Upload logo</span>
                   </label>
-                  {logoOption === "upload" && (
-                    <div style={{ display: "grid", gap: "8px", marginLeft: "24px" }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setUploadingLogo(true);
-                          setError("");
-                          try {
-                            const formData = new FormData();
-                            formData.append("file", file);
-                            formData.append("event", eventId);
-                            const res = await fetch("/api/qa/admin/upload-logo", {
-                              method: "POST",
-                              body: formData,
-                            });
-                            const payload = await res.json();
-                            if (!res.ok || !payload?.ok) {
-                              throw new Error(payload?.error || "Upload failed");
-                            }
-                            setConfig((prev) => ({ ...prev, logo_url: payload.data.url }));
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Upload failed");
-                          }
-                          setUploadingLogo(false);
-                        }}
-                        style={{ padding: "8px" }}
-                      />
-                      {uploadingLogo && <p className="meta">Uploading...</p>}
-                      {config.logo_url && logoOption === "upload" && (
-                        <img src={config.logo_url} alt="Logo preview" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} onLoad={(e) => (e.currentTarget.style.display = "block")} />
-                      )}
-                    </div>
-                  )}
                   <label style={{ display: "flex", flexDirection: "row", gap: "6px", alignItems: "center", cursor: "pointer" }}>
                     <input
                       type="radio"
@@ -291,51 +290,54 @@ export default function QaSetupPage() {
                       onChange={() => setLogoOption("generate")}
                       style={{ width: "auto" }}
                     />
-                    <span>Generate with Zo</span>
+                    <span>Ask Zo for a logo</span>
                   </label>
-                  {logoOption === "generate" && (
-                    <div style={{ display: "grid", gap: "8px", marginLeft: "24px" }}>
-                      <input
-                        value={logoPrompt}
-                        onChange={(e) => setLogoPrompt(e.target.value)}
-                        placeholder="Describe your logo (e.g., 'minimalist mountain icon in blue')"
-                      />
-                      <button
-                        className="btn"
-                        onClick={async () => {
-                          if (!logoPrompt.trim()) return;
-                          setLogoGenerating(true);
-                          setError("");
-                          try {
-                            const { res, payload } = await api(eventId, "/api/qa/admin/generate-logo", {
-                              method: "POST",
-                              body: JSON.stringify({ prompt: logoPrompt }),
-                            });
-                            if (!res.ok || !payload?.ok) {
-                              throw new Error(payload?.error || "Generation failed");
-                            }
-                            setConfig((prev) => ({ ...prev, logo_task_id: payload.data.task_id }));
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Generation failed");
-                            setLogoGenerating(false);
-                          }
-                        }}
-                        disabled={logoGenerating || !logoPrompt.trim()}
-                      >
-                        {logoGenerating ? "Starting..." : "Generate Logo"}
-                      </button>
-                      {logoGenerating && (
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px", background: "var(--muted)", borderRadius: "var(--radius-md)" }}>
-                          <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⏳</span>
-                          <span className="meta">Zo is creating your logo... You can save your setup and check back later.</span>
-                        </div>
-                      )}
-                      {config.logo_url && logoOption === "generate" && !logoGenerating && (
-                        <img src={config.logo_url} alt="Generated logo" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} onLoad={(e) => (e.currentTarget.style.display = "block")} />
-                      )}
-                    </div>
-                  )}
                 </div>
+                
+                {logoOption === "url" && (
+                  <div style={{ display: "grid", gap: "8px", marginTop: 8 }}>
+                    <input
+                      value={config.logo_url}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, logo_url: e.target.value }))}
+                      placeholder="https://example.com/logo.png"
+                    />
+                    {config.logo_url && (
+                      <img src={config.logo_url} alt="Logo preview" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} onLoad={(e) => (e.currentTarget.style.display = "block")} />
+                    )}
+                  </div>
+                )}
+                
+                {logoOption === "upload" && (
+                  <div style={{ display: "grid", gap: "8px", marginTop: 8 }}>
+                    <input type="file" accept="image/*" onChange={handleFileUpload} />
+                    {config.logo_url && (
+                      <img src={config.logo_url} alt="Logo preview" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} />
+                    )}
+                  </div>
+                )}
+                
+                {logoOption === "generate" && (
+                  <div style={{ display: "grid", gap: "8px", marginTop: 8 }}>
+                    <input
+                      value={logoPrompt}
+                      onChange={(e) => setLogoPrompt(e.target.value)}
+                      placeholder="e.g., 'grab the Zo logo' or 'create a minimalist microphone icon'"
+                    />
+                    <span className="meta">Describe the logo you want. Zo can find existing logos or create new ones.</span>
+                    {generatingLogo && <div className="meta" style={{ padding: "8px", background: "var(--muted)", borderRadius: "var(--radius-md)" }}>🎨 Zo is working on your logo...</div>}
+                    {config.logo_url && logoOption === "generate" && !generatingLogo && (
+                      <img src={config.logo_url} alt="Generated logo" className="url-preview" onError={(e) => (e.currentTarget.style.display = "none")} />
+                    )}
+                    <button 
+                      className="btn" 
+                      onClick={generateLogo} 
+                      disabled={generatingLogo || !logoPrompt.trim()}
+                      style={{ marginTop: 4 }}
+                    >
+                      {generatingLogo ? "Working..." : "Ask Zo"}
+                    </button>
+                  </div>
+                )}
               </label>
 
               {error && <div className="error">{error}</div>}
