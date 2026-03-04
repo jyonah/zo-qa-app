@@ -13,6 +13,7 @@ This document provides instructions for Zo Agents to install the Q&A app on a us
 
 ```bash
 mkdir -p /home/workspace/qa-app/data
+echo '{"questions":[],"votes":[],"settings":{"submissions_enabled":true,"voting_enabled":true,"max_votes_per_minute":20},"config":{"title":"Live Q&A","submit_label":"Submit Question","logo_url":""}}' > /home/workspace/qa-app/data/qa-store.json
 ```
 
 ### 2. Create API Routes
@@ -33,7 +34,7 @@ Create the following API routes in the user's Zo Space:
 
 #### `/api/qa/admin/settings`
 - Copy from `routes/api/qa-admin-settings.ts`
-- Handles GET/POST for event settings
+- Handles GET/POST for settings
 
 #### `/api/qa/admin/config`
 - Copy from `routes/api/qa-admin-config.ts`
@@ -45,7 +46,7 @@ Create the following API routes in the user's Zo Space:
 
 #### `/api/qa/admin/reset`
 - Copy from `routes/api/qa-admin-reset.ts`
-- Handles POST for event/full reset
+- Handles POST for full reset
 
 #### `/api/qa/admin/merge`
 - Copy from `routes/api/qa-admin-merge.ts`
@@ -58,6 +59,10 @@ Create the following page routes:
 #### `/qa`
 - Copy from `routes/pages/qa-landing.tsx`
 - Landing page with links to submit/vote/tv
+
+#### `/qa/setup`
+- Copy from `routes/pages/qa-setup.tsx`
+- Initial setup and configuration
 
 #### `/qa/submit`
 - Copy from `routes/pages/qa-submit.tsx`
@@ -80,20 +85,19 @@ Create the following page routes:
 Direct the user to [Settings > Advanced](/?t=settings&s=advanced) to configure:
 
 - `QA_DATA_FILE` — Custom data path (default: `/home/workspace/qa-app/data/qa-store.json`)
-- `QA_ADMIN_TOKEN` — Token for admin actions (default: none/open)
 
 ### 5. Verify Installation
 
 Test by visiting:
+- `/qa/setup` — Should show setup page
 - `/qa` — Should show landing page
-- `/qa/admin` — Should show admin panel
 
 ## Customization Notes
 
 The app supports:
-- Multiple events via `?event=name` parameter
-- Custom branding via admin panel
-- No authentication required by default (admin is open)
+- Custom branding via setup page
+- Four logo options: None, URL, Upload, Ask Zo
+- No authentication required (admin is open)
 
 ## Uninstallation
 

@@ -5,7 +5,7 @@
  * Installs all routes into the user's Zo Space via the Zo API.
  * 
  * Usage:
- *   bun run install.ts [--event default] [--token your-admin-token]
+ *   bun run install.ts
  */
 
 const REPO_RAW_BASE = "https://raw.githubusercontent.com/jyonah/zo-qa-app/main/routes";
@@ -23,6 +23,7 @@ const ROUTES = {
   ],
   pages: [
     { path: "/qa", file: "pages/qa-landing.tsx" },
+    { path: "/qa/setup", file: "pages/qa-setup.tsx" },
     { path: "/qa/submit", file: "pages/qa-submit.tsx" },
     { path: "/qa/vote", file: "pages/qa-vote.tsx" },
     { path: "/qa/tv", file: "pages/qa-tv.tsx" },
@@ -70,17 +71,10 @@ async function createRoute(path: string, routeType: "api" | "page", code: string
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const eventArg = args.find(a => a.startsWith("--event"))?.split("=")[1];
-  
   console.log("Zo Q&A App Installer");
   console.log("=====================\n");
-
-  if (eventArg) {
-    console.log(`Event: ${eventArg}`);
-  }
   
-  console.log("\nFetching route templates from GitHub...\n");
+  console.log("Fetching route templates from GitHub...\n");
 
   // Install API routes
   console.log("Installing API routes...");
@@ -106,10 +100,10 @@ async function main() {
 
   console.log("\n✓ Installation complete!");
   console.log("\nNext steps:");
-  console.log("  1. Visit /qa to see the landing page");
-  console.log("  2. Visit /qa/admin?event=your-event to configure");
-  console.log("  3. Share /qa/submit?event=your-event with attendees");
-  console.log("  4. Display /qa/tv?event=your-event on projectors");
+  console.log("  1. Visit /qa/setup to configure your Q&A");
+  console.log("  2. Set your event name and branding");
+  console.log("  3. Share /qa/submit with attendees");
+  console.log("  4. Display /qa/tv on projectors");
 }
 
 main().catch(err => {
