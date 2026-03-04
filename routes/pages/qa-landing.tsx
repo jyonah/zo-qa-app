@@ -15,18 +15,6 @@ const TOKENS = `
   --radius-md: 6px;
   --radius-lg: 12px;
 }
-html.dark {
-  --background: #111111;
-  --foreground: #eeeeee;
-  --primary: #ffe0c2;
-  --primary-foreground: #081a1b;
-  --secondary: #393028;
-  --secondary-foreground: #ffe0c2;
-  --muted: #222222;
-  --muted-foreground: #b4b4b4;
-  --border: #201e18;
-  --card: #191919;
-}
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hanken Grotesk", "Inter", "Segoe UI", sans-serif; background: var(--background); color: var(--foreground); }
 .app { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
@@ -38,28 +26,18 @@ body { margin: 0; font-family: "Hanken Grotesk", "Inter", "Segoe UI", sans-serif
 .meta { font-size: 12px; color: var(--muted-foreground); }
 `;
 
-function getEventId() {
-  const params = new URLSearchParams(window.location.search);
-  const raw = (params.get("event") || "default").toLowerCase().trim();
-  const cleaned = raw.replace(/[^a-z0-9_-]/g, "").slice(0, 48);
-  return cleaned || "default";
-}
-
-async function fetchConfig(eventId: string) {
-  const res = await fetch(\`/api/qa/questions?event=\${encodeURIComponent(eventId)}\`, { headers: { Accept: "application/json", "x-qa-event-id": eventId } });
+async function fetchConfig() {
+  const res = await fetch("/api/qa/questions", { headers: { Accept: "application/json" } });
   const payload = await res.json().catch(() => ({}));
   return payload?.data?.config || { title: "Live Q&A", submit_label: "Submit Question" };
 }
 
 export default function QaLandingPage() {
-  const [eventId, setEventId] = useState("default");
   const [title, setTitle] = useState("Live Q&A");
   const [submitLabel, setSubmitLabel] = useState("Submit Question");
 
   useEffect(() => {
-    const event = getEventId();
-    setEventId(event);
-    fetchConfig(event).then((cfg) => {
+    fetchConfig().then((cfg) => {
       setTitle(cfg?.title || "Live Q&A");
       setSubmitLabel(cfg?.submit_label || "Submit Question");
     });
@@ -72,11 +50,10 @@ export default function QaLandingPage() {
         <h1 style={{ margin: 0, fontSize: 28 }}>{title}</h1>
         <p style={{ margin: 0, color: "var(--muted-foreground)", lineHeight: 1.4 }}>Submit questions and vote in real time.</p>
         <div className="cta">
-          <a className="btn btn-primary" href={\`/qa/submit?event=\${encodeURIComponent(eventId)}\`}>{submitLabel}</a>
-          <a className="btn btn-secondary" href={\`/qa/vote?event=\${encodeURIComponent(eventId)}\`}>Upvote</a>
-          <a className="btn" href={\`/qa/tv?event=\${encodeURIComponent(eventId)}\`}>TV view</a>
+          <a className="btn btn-primary" href="/qa/submit">{submitLabel}</a>
+          <a className="btn btn-secondary" href="/qa/vote">Upvote</a>
+          <a className="btn" href="/qa/tv">TV view</a>
         </div>
-        <div className="meta">event: {eventId}</div>
       </section>
     </main>
   );
